@@ -13,17 +13,21 @@ public class Program
         AddExpr add1 = new(a, b);
         AddExpr add2 = new(c, d);
         AddExpr add3 = new(add1, add2);
+
         Console.WriteLine($"Initial Value: {add3.Val}");
-        Console.WriteLine($"Update State: {add3.IsUpdated}");
+        Console.WriteLine($"Update State Below: ValueExpr: a:{a.IsUpdated} b:{b.IsUpdated}");
+        Console.WriteLine($"Update State AddExpr: final:{add3.IsUpdated} add1:{add1.IsUpdated} add2:{add2.IsUpdated}");
         a.NewVal = 5;
-        await Task.Delay(500);
+        await Task.Delay(300);
         Console.WriteLine($"Updated Value: {add3.Val}");
-        Console.WriteLine($"Update State: {add3.IsUpdated}");
+        Console.WriteLine($"Update State Below: ValueExpr: a:{a.IsUpdated} b:{b.IsUpdated}");
+        Console.WriteLine($"Update State AddExpr: final:{add3.IsUpdated} add1:{add1.IsUpdated} add2:{add2.IsUpdated}");
 
         b.NewVal = 6;
-        await Task.Delay(500);
+        await Task.Delay(300);
         Console.WriteLine($"Updated(2) Value: {add3.Val}");
-        Console.WriteLine($"Update State: {add3.IsUpdated}");
+        Console.WriteLine($"Update State Below: ValueExpr: a:{a.IsUpdated} b:{b.IsUpdated}");
+        Console.WriteLine($"Update State AddExpr: final:{add3.IsUpdated} add1:{add1.IsUpdated} add2:{add2.IsUpdated}");
     }
 }
 
@@ -65,12 +69,16 @@ public class ValueExpr(int initVal) : Expr
 {
     int val = initVal;
     bool isUpdated = false;
+    private readonly object updateLock = new object(); // 锁对象
     public override int Val
     {
         get
         {
             // TODO 1:读取操作
-            return val;
+            lock (updateLock)
+            {
+                return val;
+            }
         }
     }
 
@@ -83,20 +91,27 @@ public class ValueExpr(int initVal) : Expr
     {
         set
         {
-            // TODO 2:修改操作
-            val = value;
-            isUpdated = false;
-            _ = Update();  // 对异步方法调用结果进行忽略
-
+            lock (updateLock)
+            {
+                // TODO 2:修改操作
+                val = value;
+                isUpdated = false;
+            }
+            _ = Update();
         }
     }
 
     public override async Task Update()
     {
         // TODO 3:更新操作
-        await Task.Delay(100);
-        isUpdated = true;
-        parent?.Update();
+        // 在数据更新前将状态设为false
+        isUpdated = false;
+        lock (updateLock)
+        {
+            isUpdated = false;
+            parent?.Update();
+            isUpdated = true;
+        }
     }
 
     public override void Register(Expr parent)
@@ -116,7 +131,11 @@ public class ValueExpr(int initVal) : Expr
 public class AddExpr : Expr
 {
     int val = 0;
+
     bool isUpdated = false;
+
+    private readonly object updateLock = new object();
+
     public override int Val
     {
         get
@@ -140,10 +159,16 @@ public class AddExpr : Expr
     public override async Task Update()
     {
         // TODO 6:更新操作
-        await Task.Delay(100);
-        isUpdated = true;
+        // 在数据更新前将更新状态设置为false
+        isUpdated = false;
         Compute();
+        if (parent != null)
+        {
+            await parent?.Update();
+        }
         parent?.Update();
+        isUpdated = true;
+        // 在父结点更新后才设置为true,相比之前合理一些
     }
 
     public override void Register(Expr parent)
