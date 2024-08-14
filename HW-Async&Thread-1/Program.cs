@@ -101,7 +101,7 @@ public class ValueExpr(int initVal) : Expr
         }
     }
 
-    public override async Task Update()
+    public override Task Update()
     {
         // TODO 3:更新操作
         // 在数据更新前将状态设为false
@@ -112,6 +112,7 @@ public class ValueExpr(int initVal) : Expr
             parent?.Update();
             isUpdated = true;
         }
+        return Task.CompletedTask;
     }
 
     public override void Register(Expr parent)
@@ -120,7 +121,6 @@ public class ValueExpr(int initVal) : Expr
         this.parent = parent;
         parent?.Update();
     }
-
 
 }
 
@@ -133,8 +133,6 @@ public class AddExpr : Expr
     int val = 0;
 
     bool isUpdated = false;
-
-    private readonly object updateLock = new object();
 
     public override int Val
     {
@@ -164,7 +162,7 @@ public class AddExpr : Expr
         Compute();
         if (parent != null)
         {
-            await parent?.Update();
+            await parent.Update();
         }
         parent?.Update();
         isUpdated = true;
